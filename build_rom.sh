@@ -1,12 +1,44 @@
-# sync rom
-repo init --depth=1 --no-repo-verify -u git://https://github.com/ArrowOS/android_manifest.git -b arrow-13.1 -g default,-mips,-darwin,-notdefault
-git clone https://github.com/nem1xer/local_manifests --depth 1 -b arrow-13-fleur .repo/local_manifests
-repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j8
+#!/bin/bash
 
-# build rom
-source build/envsetup.sh
-lunch arrow_fleur-userdebug
-m bacon
+#cd /tmp
+#time aria2c  -x16 -s50
+#time tar xf ccache.tar.gz
 
-# upload rom (if you don't need to upload multiple files, then you don't need to edit next line)
-rclone copy out/target/product/$(grep unch $CIRRUS_WORKING_DIR/build_rom.sh -m 1 | cut -d ' ' -f 2 | cut -d _ -f 2 | cut -d - -f 1)/*.zip cirrus:$(grep unch $CIRRUS_WORKING_DIR/build_rom.sh -m 1 | cut -d ' ' -f 2 | cut -d _ -f 2 | cut -d - -f 1) -P
+mkdir -p ~/ci
+cd ~/ci
+repo init --depth=1 https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs
+git clone -b https://github.com/nem1xer/local_manifests/blob/lineage-20.0-sea/local_manifest.xml .repo/local_manifests
+repo sync -j4 --force-sync --optimized-fetch --no-tags --no-clone-bundle --prune
+
+
+cd ~/ci
+. build/envsetup.sh
+export CCACHE_DIR=/tmp/ccache
+export CCACHE_EXEC=$(which ccache)
+export USE_CCACHE=1
+ccache -M 100G
+ccache -o compression=true
+ccache -z
+sh sea_patches/apply.sh
+lunch lineage_sea-userdebug
+mka hiddenapi-lists-docs && mka system-api-stubs-docs && mka test-api-stubs-docs
+mka init
+m bacon -j8 & sleep 75m
+
+cache() {
+cd /tmp
+rm ccache.tar.gz
+com ()
+{
+    tar --use-compress-program="pigz -k -$2 " -cf ccache.tar.gz ccache
+}
+
+cd /tmp
+sudo apt install jq -y
+rm ccache.tar.gz
+time com ccache 1
+wget https://github.com/Sushrut1101/GoFile-Upload/raw/master/upload.sh >> /dev/null
+chmod +x upload.sh
+./upload.sh ccache.tar.gz
+}
+cache
