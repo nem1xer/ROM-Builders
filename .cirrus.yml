@@ -8,7 +8,6 @@ task:
   name: Build
   skip: $CIRRUS_BRANCH == 'main'
   only_if: $CIRRUS_REPO_OWNER == 'nem1xer'
-  depends_on: Test
   timeout_in: 8h
   persistent_worker:
     labels:
